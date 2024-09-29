@@ -2463,6 +2463,7 @@ dependencies = [
 name = "dora-node-api-c"
 version = "0.3.6"
 dependencies = [
+ "arrow",
  "arrow-array",
  "dora-node-api",
  "eyre",
@@ -2493,7 +2494,6 @@ dependencies = [
  "arrow",
  "dora-node-api",
  "dora-operator-api-python",
- "dora-ros2-bridge-python",
  "dora-runtime",
  "eyre",
  "flume 0.10.14",

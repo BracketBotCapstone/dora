@@ -8,7 +8,6 @@ use dora_node_api::dora_core::config::NodeId;
 use dora_node_api::merged::{MergeExternalSend, MergedEvent};
 use dora_node_api::{DataflowId, DoraNode, EventStream};
 use dora_operator_api_python::{pydict_to_metadata, DelayedCleanup, NodeCleanupHandle, PyEvent};
-use dora_ros2_bridge_python::Ros2Subscription;
 use eyre::Context;
 use futures::{Stream, StreamExt};
 use pyo3::prelude::*;
@@ -200,43 +199,6 @@ impl Node {
     pub fn dataflow_id(&self) -> String {
         self.dataflow_id.to_string()
     }
-
-    /// Merge an external event stream with dora main loop.
-    /// This currently only work with ROS2.
-    ///
-    /// :type subscription: dora.Ros2Subscription
-    /// :rtype: None
-    pub fn merge_external_events(
-        &mut self,
-        subscription: &mut Ros2Subscription,
-    ) -> eyre::Result<()> {
-        let subscription = subscription.into_stream()?;
-        let stream = futures::stream::poll_fn(move |cx| {
-            let s = subscription.as_stream().map(|item| {
-                match item.context("failed to read ROS2 message") {
-                    Ok((value, _info)) => Python::with_gil(|py| {
-                        value
-                            .to_pyarrow(py)
-                            .context("failed to convert value to pyarrow")
-                            .unwrap_or_else(|err| PyErr::from(err).to_object(py))
-                    }),
-                    Err(err) => Python::with_gil(|py| PyErr::from(err).to_object(py)),
-                }
-            });
-            futures::pin_mut!(s);
-            s.poll_next_unpin(cx)
-        });
-
-        // take out the event stream and temporarily replace it with a dummy
-        let events = std::mem::replace(
-            &mut self.events.inner,
-            EventsInner::Merged(Box::new(futures::stream::empty())),
-        );
-        // update self.events with the merged stream
-        self.events.inner = EventsInner::Merged(events.merge_external_send(Box::pin(stream)));
-
-        Ok(())
-    }
 }
 
 struct Events {
@@ -304,8 +266,6 @@ pub fn start_runtime() -> eyre::Result<()> {
 
 #[pymodule]
 fn dora(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
-    dora_ros2_bridge_python::create_dora_ros2_bridge_module(&m)?;
-
     m.add_function(wrap_pyfunction!(start_runtime, &m)?)?;
     m.add_class::<Node>()?;
     m.setattr("__version__", env!("CARGO_PKG_VERSION"))?;
