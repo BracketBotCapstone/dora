@@ -168,7 +168,7 @@ pub unsafe extern "C" fn read_dora_input_id(
 /// freeing the `event`, since it points directly into the event's
 /// memory.
 #[no_mangle]
-pub unsafe extern "C" fn read_dora_input_data(
+pub unsafe extern "C" fn read_dora_input_data_u8(
     event: *const (),
     out_ptr: *mut *const u8,
     out_len: *mut usize,
@@ -189,8 +189,39 @@ pub unsafe extern "C" fn read_dora_input_data(
                 *out_len = 0;
             },
             _ => {
-                todo!("dora C++ Node does not yet support higher level type of arrow. Only UInt8. 
-                The ultimate solution should be based on arrow FFI interface. Feel free to contribute :)")
+                panic!("You used {}, must use U8!", metadata.type_info.data_type);
+            }
+        },
+        _ => unsafe {
+            *out_ptr = ptr::null();
+            *out_len = 0;
+        },
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn read_dora_input_data_i32(
+    event: *const (),
+    out_ptr: *mut *const i32,
+    out_len: *mut usize,
+) {
+    let event: &Event = unsafe { &*event.cast() };
+    match event {
+        Event::Input { data, metadata, .. } => match metadata.type_info.data_type {
+            dora_node_api::arrow::datatypes::DataType::Int32 => {
+                let array: &Int32Array = data.as_primitive();
+                let ptr = array.values().as_ptr();
+                unsafe {
+                    *out_ptr = ptr;
+                    *out_len = metadata.type_info.len;
+                }
+            }
+            dora_node_api::arrow::datatypes::DataType::Null => unsafe {
+                *out_ptr = ptr::null();
+                *out_len = 0;
+            },
+            _ => {
+                panic!("You used {}, must use Int32!", metadata.type_info.data_type);
             }
         },
         _ => unsafe {
@@ -251,6 +282,41 @@ pub unsafe extern "C" fn read_dora_input_data_f32(
     }
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn read_dora_input_data_u64(
+    event: *const (),
+    out_ptr: *mut *const u64,
+    out_len: *mut usize,
+) {
+    let event: &Event = unsafe { &*event.cast() };
+    match event {
+        Event::Input { data, metadata, .. } => match metadata.type_info.data_type {
+            dora_node_api::arrow::datatypes::DataType::UInt64 => {
+                let array: &UInt64Array = data.as_primitive();
+                let ptr = array.values().as_ptr();
+                unsafe {
+                    *out_ptr = ptr;
+                    *out_len = metadata.type_info.len;
+                }
+            }
+            dora_node_api::arrow::datatypes::DataType::Null => unsafe {
+                *out_ptr = ptr::null();
+                *out_len = 0;
+            },
+            _ => {
+                panic!(
+                    "You used {}, must use UInt64!",
+                    metadata.type_info.data_type
+                );
+            }
+        },
+        _ => unsafe {
+            *out_ptr = ptr::null();
+            *out_len = 0;
+        },
+    }
+}
+
 /// Reads out the timestamp of the given input event from metadata.
 ///
 /// ## Safety
@@ -295,11 +361,28 @@ pub unsafe extern "C" fn free_dora_event(event: *mut c_void) {
 /// - The `data_ptr` and `data_len` fields must be the start pointer and length
 ///   a byte array.
 #[no_mangle]
-pub unsafe extern "C" fn dora_send_output(
+pub unsafe extern "C" fn dora_send_output_u8(
     context: *mut c_void,
     id_ptr: *const u8,
     id_len: usize,
     data_ptr: *const u8,
+    data_len: usize,
+) -> isize {
+    match unsafe { try_send_output(context, id_ptr, id_len, data_ptr, data_len) } {
+        Ok(()) => 0,
+        Err(err) => {
+            tracing::error!("{err:?}");
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dora_send_output_i32(
+    context: *mut c_void,
+    id_ptr: *const u8,
+    id_len: usize,
+    data_ptr: *const i32,
     data_len: usize,
 ) -> isize {
     match unsafe { try_send_output(context, id_ptr, id_len, data_ptr, data_len) } {
