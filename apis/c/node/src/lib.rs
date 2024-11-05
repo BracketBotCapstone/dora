@@ -1,7 +1,7 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
 use arrow_array::UInt8Array;
-use arrow_array::{Array, Float32Array, Int32Array, UInt64Array};
+use arrow_array::{Array, Float32Array, Float64Array, Int32Array, UInt64Array};
 use dora_node_api::{arrow::array::AsArray, DoraNode, Event, EventStream};
 use eyre::Context;
 use std::sync::Arc;
@@ -516,6 +516,12 @@ pub trait ToArrow {
 impl ToArrow for &[f32] {
     fn to_arrow(self) -> Arc<dyn Array> {
         let array = Float32Array::from(self.to_vec());
+        Arc::new(array)
+    }
+}
+impl ToArrow for &[f64] {
+    fn to_arrow(self) -> Arc<dyn Array> {
+        let array = Float64Array::from(self.to_vec());
         Arc::new(array)
     }
 }
