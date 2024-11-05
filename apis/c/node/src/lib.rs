@@ -283,6 +283,41 @@ pub unsafe extern "C" fn read_dora_input_data_f32(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn read_dora_input_data_d64(
+    event: *const (),
+    out_ptr: *mut *const f64,
+    out_len: *mut usize,
+) {
+    let event: &Event = unsafe { &*event.cast() };
+    match event {
+        Event::Input { data, metadata, .. } => match metadata.type_info.data_type {
+            dora_node_api::arrow::datatypes::DataType::Float64 => {
+                let array: &Float64Array = data.as_primitive();
+                let ptr = array.values().as_ptr();
+                unsafe {
+                    *out_ptr = ptr;
+                    *out_len = metadata.type_info.len;
+                }
+            }
+            dora_node_api::arrow::datatypes::DataType::Null => unsafe {
+                *out_ptr = ptr::null();
+                *out_len = 0;
+            },
+            _ => {
+                panic!(
+                    "You used {}, must use Float64!",
+                    metadata.type_info.data_type
+                );
+            }
+        },
+        _ => unsafe {
+            *out_ptr = ptr::null();
+            *out_len = 0;
+        },
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn read_dora_input_data_u64(
     event: *const (),
     out_ptr: *mut *const u64,
@@ -415,6 +450,23 @@ pub unsafe extern "C" fn dora_send_output_f32(
     id_ptr: *const u8,
     id_len: usize,
     data_ptr: *const f32,
+    data_len: usize,
+) -> isize {
+    match unsafe { try_send_output(context, id_ptr, id_len, data_ptr, data_len) } {
+        Ok(()) => 0,
+        Err(err) => {
+            tracing::error!("{err:?}");
+            -1
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dora_send_output_d64(
+    context: *mut c_void,
+    id_ptr: *const u8,
+    id_len: usize,
+    data_ptr: *const f64,
     data_len: usize,
 ) -> isize {
     match unsafe { try_send_output(context, id_ptr, id_len, data_ptr, data_len) } {
